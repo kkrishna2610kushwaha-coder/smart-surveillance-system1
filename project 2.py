@@ -11,7 +11,9 @@ from datetime import datetime
 from ultralytics import YOLO
 
 
-# ---------------- CONFIGURATION ----------------
+# ==========================================
+# 1. CONFIGURATION
+# ==========================================
 
 st.set_page_config(
     page_title="Smart Surveillance System",
@@ -20,10 +22,14 @@ st.set_page_config(
 )
 
 st.title("📹 Smart Surveillance System")
-st.subheader("Employee Monitoring and Indexing using Deep Learning")
+st.subheader(
+    "Employee Monitoring and Indexing using Deep Learning"
+)
 
 
-# ---------------- DATABASE ----------------
+# ==========================================
+# 2. DATABASE CONFIGURATION
+# ==========================================
 
 DATABASE = "employee_records.csv"
 
@@ -35,14 +41,26 @@ COLUMNS = [
     "Source"
 ]
 
-if not os.path.exists(DATABASE):
-    pd.DataFrame(columns=COLUMNS).to_csv(
-        DATABASE, index=False
-    )
+
+def read_records():
+
+    try:
+        if os.path.exists(DATABASE):
+            return pd.read_csv(DATABASE)
+
+        return pd.DataFrame(columns=COLUMNS)
+
+    except Exception:
+        return pd.DataFrame(columns=COLUMNS)
 
 
 def save_records(records):
-    if records:
+
+    if not records:
+        return
+
+    try:
+
         df = pd.DataFrame(records, columns=COLUMNS)
 
         file_exists = (
@@ -57,31 +75,45 @@ def save_records(records):
             index=False
         )
 
-
-def read_records():
-    try:
-        return pd.read_csv(DATABASE)
-    except (pd.errors.EmptyDataError, FileNotFoundError):
-        return pd.DataFrame(columns=COLUMNS)
+    except Exception as e:
+        st.error(f"Database Error: {e}")
 
 
-# ---------------- LOAD YOLO MODEL ----------------
+# ==========================================
+# 3. LOAD YOLO11 MODEL
+# ==========================================
 
 @st.cache_resource
 def load_ai_model():
-    return YOLO("yolo11n.pt")
+
+    model = YOLO("yolo11n.pt")
+
+    return model
 
 
 try:
+
     model = load_ai_model()
-    st.sidebar.success("YOLO11 Model Loaded Successfully")
+
+    st.sidebar.success(
+        "YOLO11 Model Loaded Successfully"
+    )
 
 except Exception as e:
+
     st.error(f"AI Model Loading Error: {e}")
+
+    st.info(
+        "Please check internet connection, "
+        "model download and requirements.txt."
+    )
+
     st.stop()
 
 
-# ---------------- SIDEBAR MENU ----------------
+# ==========================================
+# 4. SIDEBAR MENU
+# ==========================================
 
 st.sidebar.title("MAIN MENU")
 
@@ -96,7 +128,9 @@ menu = st.sidebar.selectbox(
 )
 
 
-# ---------------- HOME MODULE ----------------
+# ==========================================
+# 5. HOME DASHBOARD
+# ==========================================
 
 if menu == "Home":
 
@@ -104,8 +138,10 @@ if menu == "Home":
 
     col1, col2, col3 = st.columns(3)
 
-    col1.metric("AI Model", "YOLO11")
+    col1.metric("AI Model", "YOLO11n")
+
     col2.metric("Technology", "Deep Learning")
+
     col3.metric("System", "Active")
 
     st.write(
@@ -114,19 +150,27 @@ if menu == "Home":
 
     st.info(
         "Upload an image or CCTV video "
-        "to detect and track people automatically."
+        "to detect and track persons automatically."
     )
 
     st.markdown("### Project Features")
 
     st.write("1. AI-based Person Detection")
+
     st.write("2. CCTV Video Monitoring")
+
     st.write("3. Person Tracking using ByteTrack")
+
     st.write("4. Employee Monitoring Records")
+
     st.write("5. CSV Report Generation")
 
+    st.write("6. Automatic AI-based Detection")
 
-# ---------------- IMAGE DETECTION ----------------
+
+# ==========================================
+# 6. IMAGE DETECTION MODULE
+# ==========================================
 
 elif menu == "Image Detection":
 
@@ -139,62 +183,82 @@ elif menu == "Image Detection":
 
     if image_file is not None:
 
-        image = np.array(
-            Image.open(image_file).convert("RGB")
-        )
+        try:
 
-        st.image(
-            image,
-            caption="Original Image",
-            use_container_width=True
-        )
-
-        if st.button("Start Detection"):
-
-            with st.spinner("Detecting persons..."):
-
-                results = model.predict(
-                    source=image,
-                    classes=[0],
-                    conf=0.4,
-                    verbose=False
-                )
-
-                result = results[0]
-
-                person_count = len(result.boxes)
-
-                output = result.plot()
-
-                output = cv2.cvtColor(
-                    output,
-                    cv2.COLOR_BGR2RGB
-                )
+            image = np.array(
+                Image.open(image_file).convert("RGB")
+            )
 
             st.image(
-                output,
-                caption="Person Detection Result",
+                image,
+                caption="Original Image",
                 use_container_width=True
             )
 
-            st.success(
-                f"Persons Detected: {person_count}"
+            if st.button("Start Detection"):
+
+                with st.spinner("Detecting Persons..."):
+
+                    results = model.predict(
+                        source=image,
+                        classes=[0],
+                        conf=0.4,
+                        verbose=False
+                    )
+
+                    result = results[0]
+
+                    person_count = (
+                        len(result.boxes)
+                        if result.boxes is not None
+                        else 0
+                    )
+
+                    output = result.plot()
+
+                    output = cv2.cvtColor(
+                        output,
+                        cv2.COLOR_BGR2RGB
+                    )
+
+                st.image(
+                    output,
+                    caption="Person Detection Result",
+                    use_container_width=True
+                )
+
+                st.success(
+                    f"Persons Detected: {person_count}"
+                )
+
+                record = [{
+                    "Date": datetime.now().strftime(
+                        "%Y-%m-%d"
+                    ),
+                    "Time": datetime.now().strftime(
+                        "%H:%M:%S"
+                    ),
+                    "Person_Count": person_count,
+                    "Tracking_IDs": "",
+                    "Source": image_file.name
+                }]
+
+                save_records(record)
+
+                st.success(
+                    "Employee Record Saved Successfully!"
+                )
+
+        except Exception as e:
+
+            st.error(
+                f"Image Processing Error: {e}"
             )
 
-            record = [{
-                "Date": datetime.now().strftime("%Y-%m-%d"),
-                "Time": datetime.now().strftime("%H:%M:%S"),
-                "Person_Count": person_count,
-                "Tracking_IDs": "",
-                "Source": image_file.name
-            }]
 
-            save_records(record)
-
-            st.success("Employee Record Saved Successfully!")
-
-
-# ---------------- VIDEO MONITORING ----------------
+# ==========================================
+# 7. VIDEO MONITORING MODULE
+# ==========================================
 
 elif menu == "Video Monitoring":
 
@@ -211,15 +275,17 @@ elif menu == "Video Monitoring":
 
         if st.button("Start Monitoring"):
 
-            suffix = os.path.splitext(video_file.name)[1]
-
-            if not suffix:
-                suffix = ".mp4"
+            suffix = os.path.splitext(
+                video_file.name
+            )[1] or ".mp4"
 
             temp_path = None
+
             cap = None
 
             try:
+
+                # Save uploaded video temporarily
 
                 with tempfile.NamedTemporaryFile(
                     delete=False,
@@ -232,10 +298,16 @@ elif menu == "Video Monitoring":
 
                     temp_path = temp_file.name
 
+                # Open video
+
                 cap = cv2.VideoCapture(temp_path)
 
                 if not cap.isOpened():
-                    st.error("Unable to open this video.")
+
+                    st.error(
+                        "Unable to open this video."
+                    )
+
                     st.stop()
 
                 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -248,15 +320,28 @@ elif menu == "Video Monitoring":
                 )
 
                 frame_count = 0
+
                 records = []
 
                 progress = st.progress(0)
 
                 video_display = st.empty()
 
-                st.info("Video monitoring started...")
+                st.info(
+                    "Video monitoring started..."
+                )
+
+                # Process video frames
 
                 while cap.isOpened():
+
+                    if frame_count >= 3000:
+
+                        st.warning(
+                            "Maximum 3000 frame limit reached."
+                        )
+
+                        break
 
                     ret, frame = cap.read()
 
@@ -274,11 +359,18 @@ elif menu == "Video Monitoring":
 
                     result = results[0]
 
-                    detected = len(result.boxes)
+                    detected = (
+                        len(result.boxes)
+                        if result.boxes is not None
+                        else 0
+                    )
 
                     ids = []
 
-                    if result.boxes.id is not None:
+                    if (
+                        result.boxes is not None
+                        and result.boxes.id is not None
+                    ):
 
                         ids = (
                             result.boxes.id
@@ -286,6 +378,8 @@ elif menu == "Video Monitoring":
                             .cpu()
                             .tolist()
                         )
+
+                    # Draw detection boxes
 
                     output = result.plot()
 
@@ -300,25 +394,44 @@ elif menu == "Video Monitoring":
                         use_container_width=True
                     )
 
-                    # Save one record approximately every second
+                    # Save records every second
 
-                    if frame_count % max(1, int(fps)) == 0:
+                    if frame_count % max(
+                        1, int(fps)
+                    ) == 0:
 
                         records.append({
-                            "Date": datetime.now().strftime("%Y-%m-%d"),
-                            "Time": str(round(frame_count / fps, 2)),
+
+                            "Date": datetime.now().strftime(
+                                "%Y-%m-%d"
+                            ),
+
+                            "Time": str(
+                                round(frame_count / fps, 2)
+                            ),
+
                             "Person_Count": detected,
+
                             "Tracking_IDs": str(ids),
+
                             "Source": video_file.name
+
                         })
 
                     frame_count += 1
 
+                    # Update progress bar
+
                     if total_frames > 0:
 
                         progress.progress(
-                            min(frame_count / total_frames, 1.0)
+                            min(
+                                frame_count / total_frames,
+                                1.0
+                            )
                         )
+
+                # Save monitoring records
 
                 if records:
 
@@ -333,9 +446,20 @@ elif menu == "Video Monitoring":
                         "Video Monitoring Completed Successfully!"
                     )
 
-                    st.metric(
+                    col1, col2 = st.columns(2)
+
+                    col1.metric(
                         "Total Frames Processed",
                         frame_count
+                    )
+
+                    col2.metric(
+                        "Total Monitoring Records",
+                        len(records)
+                    )
+
+                    st.subheader(
+                        "Video Monitoring Report"
                     )
 
                     st.dataframe(
@@ -344,8 +468,10 @@ elif menu == "Video Monitoring":
                     )
 
                     st.download_button(
-                        "Download Monitoring Report",
-                        data=df.to_csv(index=False),
+                        label="Download Monitoring Report",
+                        data=df.to_csv(
+                            index=False
+                        ).encode("utf-8"),
                         file_name="surveillance_report.csv",
                         mime="text/csv"
                     )
@@ -367,11 +493,17 @@ elif menu == "Video Monitoring":
                 if cap is not None:
                     cap.release()
 
-                if temp_path and os.path.exists(temp_path):
+                if (
+                    temp_path is not None
+                    and os.path.exists(temp_path)
+                ):
+
                     os.remove(temp_path)
 
 
-# ---------------- EMPLOYEE RECORDS ----------------
+# ==========================================
+# 8. EMPLOYEE RECORDS MODULE
+# ==========================================
 
 elif menu == "Employee Records":
 
@@ -390,14 +522,21 @@ elif menu == "Employee Records":
     )
 
     st.download_button(
-        "Download All Records",
-        data=data.to_csv(index=False),
+        label="Download All Records",
+
+        data=data.to_csv(
+            index=False
+        ).encode("utf-8"),
+
         file_name="employee_records.csv",
+
         mime="text/csv"
     )
 
 
-# ---------------- FOOTER ----------------
+# ==========================================
+# 9. FOOTER
+# ==========================================
 
 st.divider()
 
